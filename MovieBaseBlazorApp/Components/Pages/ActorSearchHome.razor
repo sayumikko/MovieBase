@@ -1,0 +1,24 @@
+﻿@page "/actor-search-home"
+@using Components.Services
+@using MovieBase
+@using MovieBase.Models
+@inject MovieService MovieService
+@rendermode InteractiveServer
+
+<h3>Actor Search</h3>
+
+<div class="input-group mb-3">
+    <input @bind="actorName" class="form-control" placeholder="Enter actor name..." />
+    <a class="btn btn-primary" href="@GetActorSearchUrl()" disabled="@string.IsNullOrWhiteSpace(actorName)">Search</a>
+</div>
+
+<p class="text-muted">Enter an actor's name to search for movies</p>
+
+@code {
+    private string actorName;
+
+    private string GetActorSearchUrl()
+    {
+        return string.IsNullOrWhiteSpace(actorName) ? "#" : $"/actor-search/{Uri.EscapeDataString(actorName)}";
+    }
+}

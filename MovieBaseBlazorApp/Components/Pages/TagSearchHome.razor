@@ -1,0 +1,24 @@
+﻿@page "/tag-search-home"
+@using Components.Services
+@using MovieBase
+@using MovieBase.Models
+@inject MovieService MovieService
+@rendermode InteractiveServer
+
+<h3>Tag Search</h3>
+
+<div class="input-group mb-3">
+    <input @bind="tagName" class="form-control" placeholder="Enter tag..." />
+    <a class="btn btn-primary" href="@GetTagSearchUrl()" disabled="@string.IsNullOrWhiteSpace(tagName)">Search</a>
+</div>
+
+<p class="text-muted">Enter a tag to search for movies</p>
+
+@code {
+    private string tagName;
+
+    private string GetTagSearchUrl()
+    {
+        return string.IsNullOrWhiteSpace(tagName) ? "#" : $"/tag-search/{Uri.EscapeDataString(tagName)}";
+    }
+}

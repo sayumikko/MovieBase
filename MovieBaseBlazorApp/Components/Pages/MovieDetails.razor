@@ -1,0 +1,129 @@
+﻿@page "/movie-details/{movieTitle}"
+@using Components.Services
+@using MovieBase
+@using MovieBase.Models
+@inject MovieService MovieService
+@inject ImdbApi ImdbApi
+@rendermode InteractiveServer
+
+<h3>Movie Details</h3>
+
+@if (movie == null)
+{
+    <p>Loading details for "@movieTitle"...</p>
+}
+else
+{
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="d-flex">
+                @if (!string.IsNullOrEmpty(posterUrl))
+                {
+                    <img src="@posterUrl" alt="@movie.Title Poster" class="img-thumbnail me-3" style="width: 150px; height: auto;" />
+                }
+
+                <div>
+                    <h4 class="card-title">@movie.Title</h4>
+                    @if (!string.IsNullOrWhiteSpace(plotDescription))
+                    {
+                        <p><strong>Description:</strong> @plotDescription</p>
+                    }
+                    <p><strong>Director:</strong> @movie.Director</p>
+                    <p><strong>Rating:</strong> @movie.Rating</p>
+                </div>
+            </div>
+
+            <hr />
+
+            <h5>Actors:</h5>
+            @if (actors != null && actors.Any())
+            {
+                <ul>
+                    @foreach (var actor in actors)
+                    {
+                        <li>
+                            <a href="/actor-search/@Uri.EscapeDataString(actor)" class="text-decoration-none">
+                                @actor
+                            </a>
+                        </li>
+                    }
+                </ul>
+            }
+            else
+            {
+                <p>No actors available.</p>
+            }
+
+            <hr />
+
+            <h5>Tags:</h5>
+            @if (tags != null && tags.Any())
+            {
+                <div class="tags-container">
+                    @foreach (var tag in tags)
+                    {
+                        <a href="/tag-search/@Uri.EscapeDataString(tag)" class="tag btn btn-outline-secondary btn-sm m-1">
+                            @tag
+                        </a>
+                    }
+                </div>
+            }
+            else
+            {
+                <p>No tags available.</p>
+            }
+
+            <h5>Top Similar Movies:</h5>
+            @if (similarMovies != null && similarMovies.Any())
+            {
+                <ul>
+                    @foreach (var similarMovie in similarMovies)
+                    {
+                        <li>
+                            <a href="/movie-details/@Uri.EscapeDataString(similarMovie.Title)" class="text-decoration-none">
+                                @similarMovie.Title
+                            </a>
+                            (Rating: @similarMovie.Rating)
+                        </li>
+                    }
+                </ul>
+            }
+            else
+            {
+                <p>No similar movies found.</p>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string movieTitle { get; set; }
+
+    private Movie movie;
+    private List<string> tags;
+    private List<Movie> similarMovies;
+    private List<string> actors;
+    private string posterUrl;
+    private string plotDescription;
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        movie = await MovieService.SearchExactMoviesAsync(movieTitle, 1, 1)
+            .ContinueWith(t => t.Result.FirstOrDefault());
+
+        if (movie != null)
+        {
+            tags = await MovieService.GetTagsForMovieAsync(movie.Title);
+            similarMovies = await MovieService.GetTopSimilarMoviesAsync(movie.Title);
+            actors = await MovieService.GetActorsForMovieAsync(movie.Title);
+
+            var details = await ImdbApi.GetMovieDetailsAsync(movie.Title);
+            if (details != null)
+            {
+                posterUrl = details.Poster;
+                plotDescription = details.Plot;
+            }
+        }
+    }
+}

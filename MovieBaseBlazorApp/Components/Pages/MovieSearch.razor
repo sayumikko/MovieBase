@@ -1,0 +1,170 @@
+﻿@page "/movies"
+@using Components.Services
+@using MovieBase
+@using MovieBase.Models
+@inject MovieService MovieService
+@inject ImdbApi ImdbApi
+@rendermode InteractiveServer
+
+<h3>Movie Search</h3>
+
+<div class="input-group mb-3">
+    <input @bind="SearchTerm" class="form-control" placeholder="Enter movie title..." />
+    <button class="btn btn-primary" @onclick="PerformSearch">Search</button>
+</div>
+
+<div class="d-flex justify-content-between mb-3">
+    <button class="btn btn-primary" @onclick="PreviousPage" disabled="@(_currentPage == 1)">Previous</button>
+    <span>Page @_currentPage of @_totalPages</span>
+    <button class="btn btn-primary" @onclick="NextPage" disabled="@(_currentPage >= _totalPages)">Next</button>
+</div>
+
+@if (movies == null)
+{
+    <p>Loading movies...</p>
+}
+else if (!movies.Any())
+{
+    <p>No movies found for your search.</p>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var movie in movies)
+        {
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100 shadow-sm d-flex flex-row align-items-start">
+                    @if (posterCache.TryGetValue(movie.Title, out var posterUrl) && !string.IsNullOrEmpty(posterUrl) && posterUrl != "N/A")
+                    {
+                        <img src="@posterUrl" class="img-thumbnail me-3" alt="@movie.Title Poster" style="width: 100px; height: auto;" />
+                    }
+
+                    <div class="card-body">
+                        <h5 class="card-title text-primary">
+                            <a href="/movie-details/@Uri.EscapeDataString(movie.Title)" class="text-decoration-none">
+                                @movie.Title
+                            </a>
+                        </h5>
+
+                        <h6 class="card-subtitle text-muted">Rating: <span class="fw-bold">@movie.Rating</span></h6>
+                        <hr />
+                        <p class="card-text">
+                            <strong>Director:</strong> @movie.Director
+                            <br />
+                            <strong>Actors:</strong>
+                            @if (actorCache.ContainsKey(movie.Title))
+                            {
+                                <ul class="list-unstyled ms-3">
+                                    @foreach (var actor in actorCache[movie.Title])
+                                    {
+                                        <li>• @actor</li>
+                                    }
+                                </ul>
+                            }
+                            else
+                            {
+                                <span>Loading actors...</span>
+                            }
+                        </p>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+}
+
+@code {
+    private List<Movie> movies;
+    private int _currentPage = 1;
+    private int _totalPages;
+    private const int PageSize = 9;
+    private string SearchTerm = "";
+    private bool IsSearching = false;
+    private Dictionary<string, List<string>> actorCache = new();
+    private Dictionary<string, string> posterCache = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadMoviesAsync();
+    }
+
+    private async Task LoadMoviesAsync()
+    {
+        if (IsSearching && !string.IsNullOrEmpty(SearchTerm))
+        {
+            var totalMovies = await MovieService.GetSearchResultCountAsync(SearchTerm);
+            _totalPages = (int)Math.Ceiling(totalMovies / (double)PageSize);
+            movies = await MovieService.SearchMoviesAsync(SearchTerm, _currentPage, PageSize);
+        }
+        else
+        {
+            var totalMovies = await MovieService.GetTotalMoviesCountAsync();
+            _totalPages = (int)Math.Ceiling(totalMovies / (double)PageSize);
+            movies = await MovieService.GetMoviesAsync(_currentPage, PageSize);
+        }
+
+        _ = LoadPostersForPageAsync();
+        _ = LoadActorsForPageAsync();
+    }
+
+    private async Task LoadActorsForPageAsync()
+    {
+        var tasks = movies
+            .Where(movie => !actorCache.ContainsKey(movie.Title))
+            .Select(async movie =>
+            {
+                var actors = await MovieService.GetActorsForMovieAsync(movie.Title);
+                actorCache[movie.Title] = actors;
+            });
+
+        await Task.WhenAll(tasks);
+        StateHasChanged(); 
+    }
+
+    private async Task LoadPostersForPageAsync()
+    {
+        var tasks = movies
+            .Where(movie => !posterCache.ContainsKey(movie.Title))
+            .Select(async movie =>
+            {
+                var details = await ImdbApi.GetMovieDetailsAsync(movie.Title);
+                if (details != null)
+                {
+                    posterCache[movie.Title] = details.Poster;
+                }
+            });
+
+        await Task.WhenAll(tasks);
+        StateHasChanged();
+    }
+
+
+    private async Task LoadActorsAsync(string title)
+    {
+        if (!actorCache.ContainsKey(title))
+        {
+            actorCache[title] = await MovieService.GetActorsForMovieAsync(title);
+            StateHasChanged();
+        }
+    }
+
+    private async Task PerformSearch()
+    {
+        IsSearching = true;
+        _currentPage = 1;
+        await LoadMoviesAsync();
+    }
+
+    private async Task NextPage()
+    {
+        _currentPage++;
+        await LoadMoviesAsync();
+    }
+
+    private async Task PreviousPage()
+    {
+        _currentPage--;
+        await LoadMoviesAsync();
+    }
+}

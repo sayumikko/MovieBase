@@ -1,0 +1,88 @@
+﻿@page "/"
+@using Components.Services
+@using MovieBase
+@using MovieBase.Models
+@inject MovieService MovieService
+@rendermode InteractiveServer
+
+<PageTitle>Home</PageTitle>
+
+<div class="container mt-5">
+    <div class="row">
+        <div class="col text-center">
+            <h1 class="display-4 text-primary">Welcome to MovieBase!</h1>
+            <p class="lead">Discover a random movie and explore our collection!</p>
+        </div>
+    </div>
+
+    @if (randomMovie == null)
+    {
+        <div class="text-center mt-5">
+            <p>Loading a random movie...</p>
+        </div>
+    }
+    else
+    {
+        <div class="row justify-content-center mt-4">
+            <div class="col-md-6">
+                <div class="card shadow-lg">
+                    <div class="card-body">
+                        <h2 class="card-title text-primary">@randomMovie.Title</h2>
+                        <h6 class="card-subtitle mb-2 text-muted">
+                            Rating: <span class="fw-bold">@randomMovie.Rating</span>
+                        </h6>
+                        <hr />
+                        <p class="card-text">
+                            <strong>Director:</strong> @randomMovie.Director
+                            <br />
+                            <strong>Actors:</strong>
+                            @if (actorCache.ContainsKey(randomMovie.Title))
+                            {
+                                <ul class="list-unstyled ms-3">
+                                    @foreach (var actor in actorCache[randomMovie.Title])
+                                    {
+                                        <li>• @actor</li>
+                                    }
+                                </ul>
+                            }
+                            else
+                            {
+                                <span>Loading actors...</span>
+                            }
+                        </p>
+                        <div class="text-center mt-3">
+                            <button class="btn btn-primary" @onclick="GetRandomMovie">Show Another Movie</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private Movie randomMovie;
+    private Dictionary<string, List<string>> actorCache = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetRandomMovie();
+    }
+
+    private async Task GetRandomMovie()
+    {
+        randomMovie = await MovieService.GetRandomMovieAsync();
+
+        await LoadActorsAsync(randomMovie.Title);
+    }
+
+    private async Task LoadActorsAsync(string title)
+    {
+        if (!actorCache.ContainsKey(title))
+        {
+            var actors = await MovieService.GetActorsForMovieAsync(title);
+            actorCache[title] = actors;
+            StateHasChanged();
+        }
+    }
+}
